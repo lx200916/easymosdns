@@ -1,0 +1,112 @@
+log:
+  level: error
+  file: "./mosdns.log"
+
+plugins:
+  - tag: "chinalist"
+    type: "domain_set"
+    args:
+      files:
+        - ./rules/china_domain_list.txt
+  - tag: gfwlist
+    type: "domain_set"
+    args:
+      files:
+        - ./rules/gfw_domain_list.txt
+  - tag: cdncn
+    type: "domain_set"
+    args:
+      files:
+        - ./rules/cdn_domain_list.txt
+  - tag: chinaip
+    type: "ip_set"
+    args:
+      files:
+        - ./rules/china_ip_list.txt
+  - tag: gfwip
+    type: "ip_set"
+    args:
+      files:
+        - ./rules/gfw_ip_list.txt
+  - tag: adlist
+    type: "domain_set"
+    args:
+      files:
+        - ./rules/ad_domain_list.txt
+  - tag: ecscn
+    type: "domain_set"
+    args:
+      files:
+        - ./ecs_cn_domain.txt
+  - tag: ecstw
+    type: "domain_set"
+    args:
+      files:
+        - ./ecs_tw_domain.txt
+  - tag: hosts
+    type: "hosts"
+    args:
+      files:
+        - ./hosts.txt
+  - tag: "ecs_auto"
+    type: "sequence"
+    args:
+      exec: ecs
+  - tag: "ecs_tw"
+    type: "sequence"
+    args:
+      exec: ecs 168.95.1.0/22 2001:b000:168::1/22
+  - tag: "ecs_cn"
+    type: "sequence"
+    args:
+      exec: ecs 1.2.4.0/22 2001:dc7:1000::1/22
+  
+
+
+  - tag: "cache"
+    type: "cache"
+    args:
+      size: 1024 # 内置内存缓存大小。单位: 条。默认: 1024。每个 cache 插件的内存缓存是独立的。
+
+      # lazy cache 设定。lazy_cache_ttl > 0 会启用 lazy cache。
+      # 所有应答都会在缓存中存留 lazy_cache_ttl 秒，但自身的 TTL 仍然有效。如果命中过期的应答，
+      # 则缓存会立即返回 TTL 为 5 的应答，然后自动在后台发送请求更新数据。
+      # 相比强行增加应答自身的 TTL 的方法，lazy cache 能提高命中率，同时还能保持一定的数据新鲜度。
+      lazy_cache_ttl:
+        0 # lazy cache 生存时间。单位: 秒。默认: 0 (禁用 lazy cache)。
+        # 建议值 86400（1天）~ 259200（3天）
+      #redis: "redis://127.0.0.1:6379/0"
+
+
+      # 将缓存保存在磁盘。插件启动时也会自动从该文件载入缓存。
+      # 缓存将在 mosdns 被关闭时保存。
+      dump_file: ./cache.dump
+      # 自动保存间隔。单位秒。默认 600。
+      # 如果距离上次 dump 有 1024 次更新，则自动保存。
+      dump_interval: 600
+  - tag: "main"
+    type: "sequence"
+    args:
+      exec:
+        - hosts
+        - matches: 
+          - qname $adlist
+          exec: reject 3  
+        - ecs_auto
+        - hosts
+        - cache
+  # - args:
+  #     upstreams:
+  #       - addr: https://8.8.8.8/dns-query
+  #   tag: forward_google
+  #   type: forward
+  # - args:
+  #     entry: forward_google
+  #     listen: 127.0.0.1:53
+  #   tag: udp_server
+  #   type: udp_server
+  # - args:
+  #     entry: forward_google
+  #     listen: 127.0.0.1:53
+  #   tag: tcp_server
+  #   type: tcp_server
